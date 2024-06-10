@@ -286,13 +286,26 @@ def promotermut_NF(promoter_rate, Np, decoy_, Kd, Kd_mut, theta):
                         promoter_rate*mutPCN[i]/(1+(1+theta*x0)*(lacI_free)/Kd_mut)
 
         
-        lacI_arr[i]=(1+x0)*(lacI_free)/Kd_mut
+        lacI_arr[i]=lacI_free #(1+x0)*(lacI_free)/Kd_mut
         
     return promoter_arr, lacI_arr
 
+#--------------------------
+# analytical expression in case decoy=0, theta=0
+# promotermut_NF(promoter_rate=20, Np=10, decoy_=0, Kd=5, Kd_mut=10**6, theta=0)
+# very close to promotermut_NF_analytic(r,10,5)
+def promotermut_NF_analytic(promoter_rate, Np, Kd):
+    mutPCN=np.arange(0, Np+1).astype(int)
+    ratio_=mutPCN/Np    
+    # promoter_rate is beta_y in SI eq, equals 1/10 beta_z
+    product_term=promoter_rate*10*Np*ratio_
+    lacI_arr=0.5*((product_term-Kd)+np.sqrt((product_term-Kd)**2+4*promoter_rate*10*Np*Kd))
+    promoter_arr=promoter_rate*Np*((1-ratio_)/(1+lacI_arr/Kd)+ratio_)
+
+    return promoter_arr, lacI_arr
 
 
-#-------------------------
+#===========================================
 def lacI_NF(y,Np,decoy_, mut_PCN,Kd, r, theta):
     wtPCN=Np-mut_PCN    
     degrad=1
@@ -300,7 +313,8 @@ def lacI_NF(y,Np,decoy_, mut_PCN,Kd, r, theta):
 
     production=r*wtPCN*10/(1+(1+theta*x0)*(y/Kd))
 
-    eq_=production-degrad*(y+x0)#+x1)
+    # y+x0: lacI and lacI bound to decoy
+    eq_=production-degrad*(y+x0)
      
     return eq_
 
@@ -316,14 +330,24 @@ def repressormut_NF_(promoter_rate, Np,decoy_, Kd, theta):
     for i in range(0,len(mutPCN)):
         lacI_free=fsolve(lacI_NF, P_initial_guess,args=(Np, decoy_, mutPCN[i], Kd, promoter_rate, theta))[0]
         x0=lacI_free/(lacI_free+Kd)*decoy_
-
         promoter_arr[i]=promoter_rate*Np/(1+(1+theta*x0)*lacI_free/Kd)
         
         lacI_arr[i]=lacI_free
     
 
     return promoter_arr, lacI_arr
-    
+
+#---------------------------------
+# repressormut_NF_analytic(promoter,Np,Kd) gives the same result as
+# repressormut_NF_(r,Np,decoy=0,Kd=Kd, theta=0)
+# analytical expression, no decoy_ and theta
+def repressormut_NF_analytic(promoter_rate, Np, Kd):
+    mutPCN=np.arange(0, Np+1).astype(int)
+    ratio_=mutPCN/Np    
+    lacI_arr=0.5*(-Kd+np.sqrt(Kd**2+4*(1-ratio_)*promoter_rate*10*Np*Kd))
+    promoter_arr=promoter_rate*Np/(1+lacI_arr/Kd)
+
+    return promoter_arr, lacI_arr
 
 #====================================
 # repressor mutation
