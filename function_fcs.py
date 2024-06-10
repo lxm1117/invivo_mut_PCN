@@ -10,6 +10,9 @@ from scipy.optimize import curve_fit,fsolve, minimize
 from scipy.stats import gamma
 from itertools import chain
 
+import rpy2.robjects as robjects
+from rpy2.robjects import FloatVector
+
 
 ch1_='FSC-H'
 ch2_='SSC-H'
@@ -125,8 +128,82 @@ def fig_boxplot_N(data_set,labellist,title,ax,median_color='orange'):
     ax.set_yticks(yticks_,yticks_str)
     
     return ax
+    
+
+#---------------------------------------
+def fig_mutprob(data_mutprob, data_sdmutprob, labels_, colors_, ax):    
+    ax.set_axisbelow(True)
+    ax.plot(labels_, data_mutprob, color='darkgrey', lw=0.75)
+    for i in range(0,len(labels_)):
+        ax.errorbar(labels_[i],data_mutprob[i], yerr=data_sdmutprob[i],fmt='o', markersize=6, capsize=2,c=colors_(i/len(labels_)),lw=1.5, linestyle='None')
+    ax.set_ylabel('phenotypic\nmutation rate ($10^{-4}$)', fontsize=10)
+    ax.tick_params(direction='in',which='both',axis='both',labelsize=9)
+    ax.set_yticks([0,0.5e-4, 1e-4, 1.5e-4, 2.0e-4], ['0', '0.5', '1.0','1.5','2.0'])
+    ax.set_ylim([0, 2.1e-4])
+    ax.set_xscale('log')
+    ax.set_xlabel('plasmid copy number',fontsize=10)
+    
+    return ax
 
 
+#----------------------------
+def write_mutant_file(mut_data, mutant_file):
+    
+    with open(mutant_file, 'w') as file:
+        for i in range(0,len(mut_data)):
+            sequence_=mut_data[i]
+            for j in range(0,len(sequence_)):
+                seq_=sequence_[j]
+                if j==len(sequence_)-1:
+                    s=''.join(str(seq_)+'\n')
+                else:
+                    s=''.join(str(seq_)+',')
+                file.write(s)
+    file.close()
+
+    return
+
+def write_events_file(data_, data_file):
+    
+    with open(data_file, 'w') as file:
+        for i in range(0,len(data_)):
+            sequence_=data_[i]
+            for j in range(0,len(sequence_)):
+                seq_=float(sequence_[j])
+                if j==len(sequence_)-1:
+                    s=''.join(str(seq_)+'\n')
+                else:
+                    s=''.join(str(seq_)+',')
+                file.write(s)
+
+def read_mut_file(mut_file, events_file, method):
+    
+    robjects.r('library(flan)')
+    robjects.r("file_path<-'"+mut_file+"'")
+    robjects.r("file_fn<-'"+events_file+"'")
+    
+    r_code="""
+    data<-read.table(file_path, fill=TRUE,sep=',')
+    fn_data<-read.table(file_fn, fill=TRUE,sep=',')
+    """
+    robjects.r(r_code)
+
+    if method =='GF' or method =='ML':
+        flan_1=robjects.r('data_<-unlist(data[1,]); fn_<-unlist(fn_data[1,]); mutestim(mc=data_,fn=fn_,model="H", method="'+method+'", plateff=1,fitness=1)')
+        flan_2=robjects.r('data_<-unlist(data[2,]); fn_<-unlist(fn_data[2,]); mutestim(mc=data_,fn=fn_,model="H", method="'+method+'", plateff=1,fitness=1)')
+        flan_3=robjects.r('data_<-unlist(data[3,]); fn_<-unlist(fn_data[3,]); mutestim(mc=data_,fn=fn_,model="H", method="'+method+'", plateff=1,fitness=1)')
+        flan_4=robjects.r('data_<-unlist(data[4,]); fn_<-unlist(fn_data[4,]); mutestim(mc=data_,fn=fn_,model="H", method="'+method+'", plateff=1,fitness=1)')
+        flan_5=robjects.r('data_<-unlist(data[5,]); fn_<-unlist(fn_data[5,]); mutestim(mc=data_,fn=fn_,model="H", method="'+method+'", plateff=1,fitness=1)')
+
+        data_mutprob=np.array([flan_1[0][0], flan_2[0][0], flan_3[0][0], flan_4[0][0], flan_5[0][0]])
+        data_sdmutprob=np.array([flan_1[1][0], flan_2[1][0], flan_3[1][0], flan_4[1][0], flan_5[1][0]])
+    else:
+        print('incorrect method, use either ML or GF')
+        return
+
+
+    return data_mutprob, data_sdmutprob
+    
 #============================================================================================
 # r=5, placIO single copy plasmid 0.1 (0.5 transpcript/s, Elowitz, low-copy plasmid) x 20 proteins/transcript (Elowitz)
 # "average translation efficiency, 20 proteins per transcript"
@@ -276,4 +353,3 @@ def repressor_fixedCN(promoter_rate, Np, Kd,pupsp2_rate):
     promoter_activity_=promoter_rate/(1+(lacIwt_conc/Kd)) 
 
     return promoter_activity_, lacIwt_conc
-
